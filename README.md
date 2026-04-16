@@ -489,4 +489,4 @@ MIT
 
 ---
 
-*Built for OpenClaw. Tested on a ThinkPad X240 with 7.5GB RAM and an i5-4200U. No vectors were embedded in the making of this system.*
+*Built for OpenClaw. No vectors were embedded in the making of this system.*

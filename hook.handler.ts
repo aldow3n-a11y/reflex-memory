@@ -1,7 +1,7 @@
 import { readFileSync, writeFileSync, existsSync } from "fs";
 import { join } from "path";
 
-const WORKSPACE = process.env.OPENCLAW_WORKSPACE || join(process.env.HOME || "/home/manager", ".openclaw/workspace");
+const WORKSPACE = process.env.OPENCLAW_WORKSPACE || join(process.env.HOME || "/home/user", ".openclaw/workspace");
 const QUEUE_FILE = join(WORKSPACE, "PROJECTS/cortex-v2/synthesis_queue.json");
 const MEMORY_FILE = join(WORKSPACE, "MEMORY.md");
 
