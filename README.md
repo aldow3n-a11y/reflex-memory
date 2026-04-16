@@ -295,8 +295,8 @@ Every stage that needs knowledge distillation can use an LLM call. The current h
 └─────────────┘     └─────────────┘     └─────────────┘
        │                    │                    │
        ▼                    ▼                    ▼
-  queue.json          MEMORY.md            MEMORY.md
-  (capture)          (curated facts)      (compacted)
+  queue.json          daily log +        vault/Atlas/Notes/
+  (capture)          Calendar note        + MEMORY.md
 ```
 
 ### Stage 1: Observe (regex + optional LLM)
@@ -511,6 +511,8 @@ openclaw memory status
 
 8. **Fast + Deep layers** — The cortex hook captures in real-time (fast, regex, event-driven). Native Dreaming scores and promotes overnight (deep, weighted signals, cron). Both layers work together — the hook feeds daily logs, Dreaming ingests them.
 
+9. **Session activation, not just awareness** — Reflex Memory isn't passive infrastructure. Every session actively follows the startup protocol: recall, check queue, verify hooks, use saliency, write logs, check dreams.
+
 ---
 
 ## Native Dreaming Integration
@@ -593,6 +595,50 @@ Items must pass `minScore`, `minRecallCount`, and `minUniqueQueries` thresholds 
 ### Dream Diary
 
 Dreaming writes a narrative diary to `DREAMS.md` — a human-readable summary of what surfaced overnight. This is not a data source for recall, just a readable log of consolidation activity.
+
+---
+
+## Session Startup Protocol
+
+Every new session should follow this startup sequence to activate Reflex Memory:
+
+1. **Recall first** — always `memory_search` before guessing facts. FTS5 covers memory/ + vault/ + workspace.
+2. **Check synthesis queue** — read `PROJECTS/cortex-v2/synthesis_queue.json`. If orphaned items exist from a crashed session, distill them to the daily log.
+3. **Verify hooks** — confirm cortex-synthesis is active (`openclaw hooks list`). If disabled, re-enable.
+4. **Use saliency patterns** — when you say something worth remembering, mark it: "remember this:", "core truth:", "lesson learned:", "critical decision:". The hook captures these.
+5. **Write daily log** — capture what happened in `memory/YYYY-MM-DD.md`.
+6. **Dreaming awareness** — check `DREAMS.md` for overnight consolidation results. Native Dreaming promotes scored entries to MEMORY.md at 3am.
+
+### Memory Maintenance Cadence
+
+| Frequency | Action |
+|-----------|--------|
+| Every session | Write daily log, use saliency patterns |
+| Session end | Distill queue to daily log + Calendar note |
+| Overnight (auto) | Dreaming: Light → REM → Deep |
+| Weekly | Extract insights → vault/Atlas/Notes/ with YAML frontmatter |
+| Monthly | Audit MOC links, prune noise, consolidate duplicates |
+
+---
+
+## AGENTS.md Integration
+
+Add the Reflex Memory Startup directive to your `AGENTS.md` so every session automatically follows the protocol:
+
+```markdown
+### 🧠 Reflex Memory Startup
+
+Every session starts with the Reflex Memory protocol (defined in MEMORY.md). On startup:
+
+1. **Recall first** — always `memory_search` before guessing facts.
+2. **Check synthesis queue** — handle orphaned items from crashed sessions.
+3. **Verify hooks** — confirm cortex-synthesis is active.
+4. **Use saliency patterns** — mark insights for capture.
+5. **Write daily log** — `memory/YYYY-MM-DD.md`.
+6. **Dreaming awareness** — check `DREAMS.md` for overnight results.
+```
+
+This closes the loop — not just knowing about Reflex Memory but actively using it from session one.
 
 ---
 
