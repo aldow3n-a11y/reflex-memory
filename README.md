@@ -37,12 +37,22 @@ Reflex Memory gives an OpenClaw agent a persistent, searchable, self-maintaining
 └─────────────────────────────────────────────────────────┘
 ```
 
-### Five Stages
+### Architecture Principle: Map vs. Territory
+
+MEMORY.md is the **map** — protocol, rules, and pointers to where knowledge lives. It does **not** store detailed facts.
+
+The **territory** is the vault and daily logs:
+- Detailed facts → `vault/Atlas/Notes/` (atomic notes with YAML frontmatter)
+- Daily events → `memory/YYYY-MM-DD.md` and `vault/Calendar/YYYY-MM-DD.md`
+- Credentials → `vault/Atlas/Notes/Credentials-Index.md` (references only, not secrets)
+- Infrastructure → `vault/Atlas/Notes/Environment.md`
+
+When you need a fact, `memory_search` finds it in the territory. MEMORY.md just tells you where to look.
 
 | Stage | Frequency | What Happens | Where |
 |-------|-----------|-------------|-------|
 | **Capture** | Daily | Events → daily log → Calendar note | `memory/YYYY-MM-DD.md` → `vault/Calendar/` |
-| **Distill** | Auto (event) | Saliency patterns → queue → MEMORY.md | `hooks/cortex-synthesis/` |
+| **Distill** | Auto (event) | Saliency patterns → queue → daily log + Calendar note | `hooks/cortex-synthesis/` |
 | **Recall** | Every turn | FTS5 search across all sources | `memory_search` tool |
 | **Extract** | Weekly | Insights → atomic notes → MOC links | `vault/Atlas/Notes/` |
 | **Maintain** | Monthly | Audit links, prune noise, archive stale | `vault/_memory_backup/` |
@@ -56,8 +66,12 @@ Reflex Memory gives an OpenClaw agent a persistent, searchable, self-maintaining
 The first thing every session reads. A `§`-delimited file containing:
 
 - **Memory Protocol** — 6-step instructions for how to use the system
-- **Curated facts** — environment, infrastructure, credentials references, past incidents
-- **Distilled insights** — auto-appended by the synthesis hook
+- **Rule** — no assumptions, no hallucination
+- **Memory Map** — pointers to where detailed knowledge lives (vault notes, daily logs, credentials)
+- **User profile** — name, style, platform
+- **Hook status** — which hooks are active
+
+MEMORY.md is the **map, not the territory**. Detailed facts live in `vault/Atlas/Notes/` as atomic notes. `memory_search` finds them on demand.
 
 See `MEMORY.example.md` for a real example.
 
@@ -67,7 +81,7 @@ Event-driven hook that replaces manual cron jobs and standalone Python scripts.
 
 **Events:**
 - `message:sent` → scans assistant output for saliency patterns, stages to queue
-- `command:new` / `command:reset` → distills queued insights into MEMORY.md
+- `command:new` / `command:reset` → distills queued insights to daily log and Calendar note
 - `gateway:startup` → flushes orphaned queue items from crashed sessions
 
 **Saliency patterns captured:**
@@ -77,6 +91,11 @@ Event-driven hook that replaces manual cron jobs and standalone Python scripts.
 - "critical decision:"
 - "correction:"
 - "update memory:"
+
+**Where distill writes:**
+- `memory/YYYY-MM-DD.md` — daily log (always)
+- `vault/Calendar/YYYY-MM-DD.md` — Calendar note (if exists)
+- **NOT** MEMORY.md — that file is the map (protocol + pointers), not the territory
 
 **Files:** `hook.HOOK.md` (metadata), `hook.handler.ts` (implementation)
 
@@ -168,13 +187,16 @@ See `HEARTBEAT.md`.
 ### Normal Session
 
 ```
-1. Session starts → MEMORY.md loaded (curated facts + protocol)
+1. Session starts → MEMORY.md loaded (protocol + map, not detailed facts)
 2. User asks question → agent runs memory_search (FTS5 recall)
+   memory_search finds relevant vault notes, daily logs, CORTEX entries
 3. Agent responds with context → hook scans output for saliency
 4. Match found → staged to synthesis_queue.json
-5. Session ends (/new) → distiller writes queued items to MEMORY.md
+5. Session ends (/new) → distiller writes queued items to daily log + Calendar
 6. Agent writes daily log → memory/YYYY-MM-DD.md
 7. Agent writes Calendar note → vault/Calendar/YYYY-MM-DD.md
+   (Weekly: agent extracts insights → vault/Atlas/Notes/)
+   (Monthly: agent audits MOCs, prunes CORTEX, archives stale)
 ```
 
 ### Crashed Session
@@ -183,7 +205,7 @@ See `HEARTBEAT.md`.
 1. Session crashes mid-conversation
 2. Queue has orphaned items (captured but not distilled)
 3. Gateway restarts → gateway:startup event fires
-4. Hook detects items in queue → distills into MEMORY.md
+4. Hook detects items in queue → distills to daily log + Calendar
 5. No lost insights
 ```
 
@@ -255,16 +277,18 @@ Input: assistant message
 
 ### Stage 2: Distill (LLM call)
 
-Current: strip pattern prefix, dedup against MEMORY.md, append raw text.
+Current: strip pattern prefix, dedup, append to daily log + Calendar note.
 
-Enhanced: LLM receives queued items + current MEMORY.md, produces a structured entry that fits the existing format. Deduplication happens at the LLM level — it can merge related entries.
+Enhanced: LLM receives queued items + recent daily logs, produces a structured entry. Deduplication happens at the LLM level — it can merge related items and write directly to atomic notes in `vault/Atlas/Notes/`.
 
 ```
-Input: queue.json items + current MEMORY.md
-→  LLM: "Distill these insights into concise MEMORY.md entries
-         that complement existing content. Merge related items.
-         Use § delimiters. Output only the new entries."
-→  append to MEMORY.md
+Input: queue.json items + recent daily logs
+→  LLM: "Distill these insights. For each:
+         - If it's a principle/decision → write atomic note to vault/Atlas/Notes/
+         - If it's a daily event → append to daily log
+         - Merge related items. Use YAML frontmatter.
+         Output the writes you want to make."
+→  write to vault/Atlas/Notes/ and/or daily log
 →  clear queue
 ```
 
@@ -424,6 +448,8 @@ openclaw hooks list | grep cortex
 4. **Distill, don't dump** — Raw logs go to daily files. Only curated, deduplicated insights enter MEMORY.md. The synthesis queue is a staging area, not a fire hose.
 
 5. **LLM-enhanced, not LLM-dependent** — Every distillation stage can use an LLM call for better quality, but regex fallback means the system never breaks without API access.
+
+6. **Map, not territory** — MEMORY.md contains protocol and pointers. Detailed facts live in vault notes and daily logs. memory_search finds them on demand.
 
 6. **Archive, don't delete** — Pruned CORTEX noise and stale notes go to `_memory_backup/`, not `/dev/null`. Recoverable beats gone forever.
 
