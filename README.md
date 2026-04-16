@@ -138,7 +138,10 @@ vault/
 │   ├── Maps/          # MOCs (Maps of Content) — navigation layer
 │   │   ├── AI MOC.md
 │   │   ├── Business MOC.md
+│   │   ├── Creative MOC.md
+│   │   ├── DevOps MOC.md
 │   │   ├── PKM MOC.md
+│   │   ├── Research MOC.md
 │   │   ├── Robot MOC.md
 │   │   └── Trading MOC.md
 │   └── Notes/         # Atomic notes — knowledge units
@@ -147,12 +150,9 @@ vault/
 │       ├── Credentials-Index.md
 │       └── ...
 ├── Calendar/          # Daily notes (auto-populated)
-├── 03-CORTEX/         # Auto-extracted knowledge (tiered)
-│   ├── 00-MOCs/       # Extracted MOCs
-│   ├── 01-Principles/ # T1-T4 principles
-│   └── 02-Decisions/  # T1-T4 decisions
 ├── Efforts/           # Session snapshots, projects
-├── _memory_backup/    # Archived/pruned content
+├── _memory_backup/    # Archived/pruned content (includes CORTEX archive)
+│   └── cortex-archive/  # Original 03-CORTEX (pre-merge)
 └── Templates/         # Note templates
 ```
 
@@ -234,10 +234,38 @@ See `HEARTBEAT.md`.
 1. Audit MOC wikilinks → find broken references
 2. Create stubs for missing conceptual notes
 3. Remove date-stamped session references from MOCs
-4. Prune 03-CORTEX noise (tool dumps, reasoning traces)
-5. Archive stale unreferenced notes → _memory_backup/
-6. Consolidate duplicate entries
+4. Archive stale unreferenced notes → _memory_backup/
+5. Consolidate duplicate entries
 ```
+
+### MOC Expansion Rules
+
+MOCs are the navigation layer. They should cover meaningful notes, not generic stubs.
+
+**When to add a new MOC:**
+- A topic cluster has 10+ notes that don't fit any existing MOC
+- The cluster is distinct enough to warrant its own map
+
+**When to expand an existing MOC:**
+- New notes are extracted that belong to an existing topic
+- After a weekly extraction cycle, link new atomic notes to relevant MOCs
+
+**What NOT to link:**
+- Generic stubs ("Overview", "Summary", "Key-Takeaways", "Conclusion") — these surface via `memory_search` when needed
+- Notes with <150 bytes of body text — too thin to be navigation-worthy
+- Auto-extracted content with no YAML frontmatter — likely noise
+
+**Naming convention:**
+- MOC files: `Topic MOC.md` (e.g., `AI MOC.md`, `DevOps MOC.md`)
+- Use `[[Note-Name]]` wikilinks (dashes, not spaces, matching filenames)
+- Cross-reference related MOCs in a `## Related MOCs` section
+- Target ~30-50% coverage of meaningful notes (FTS5 handles the rest)
+
+**MOC audit checklist:**
+1. Broken wikilinks → find correct note name or remove
+2. Missing notes that should be linked → add
+3. Cross-MOC references → ensure Related MOCs section lists them
+4. Coverage ratio → if <25%, consider expanding; if >60%, consider splitting
 
 ---
 
@@ -420,7 +448,7 @@ openclaw hooks enable cortex-synthesis
 ### 3. Set up vault structure
 
 ```bash
-mkdir -p vault/{Atlas/{Maps,Notes},Calendar,03-CORTEX/{00-MOCs,01-Principles,02-Decisions},Efforts,Templates,_memory_backup}
+mkdir -p vault/{Atlas/{Maps,Notes},Calendar,Efforts,Templates,_memory_backup}
 ```
 
 Copy templates from this repo into `vault/Templates/`.
@@ -431,7 +459,7 @@ Paste the Memory Protocol (first 6 lines of `MEMORY.example.md`) at the top of y
 
 ### 5. Create your first MOC
 
-Use `template-moc.md` to create a Map of Content in `vault/Atlas/Maps/`.
+Use `template-moc.md` to create a Map of Content in `vault/Atlas/Maps/`. See MOC Expansion Rules below for guidance on when to add new MOCs and how to link notes.
 
 ### 6. Verify
 
