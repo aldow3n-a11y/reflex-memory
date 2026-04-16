@@ -557,7 +557,26 @@ Reflex Memory integrates with OpenClaw's built-in Dreaming system as the deep co
 
 ### Configuration
 
-Enable Dreaming in `openclaw.json`:
+**Quick enable** (default settings):
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "memory-core": {
+        "enabled": true,
+        "config": {
+          "dreaming": {
+            "enabled": true
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**Bootstrap config** (first 1-2 weeks — lower thresholds for early adoption):
 
 ```json
 {
@@ -568,7 +587,14 @@ Enable Dreaming in `openclaw.json`:
         "config": {
           "dreaming": {
             "enabled": true,
-            "frequency": "0 3 * * *"
+            "timezone": "Asia/Jakarta",
+            "frequency": "0 4 * * *",
+            "storage": { "mode": "both" },
+            "phases": {
+              "light": { "lookbackDays": 3, "limit": 150 },
+              "deep": { "minRecallCount": 2, "minUniqueQueries": 2 },
+              "rem": { "lookbackDays": 7 }
+            }
           }
         }
       }
@@ -577,7 +603,47 @@ Enable Dreaming in `openclaw.json`:
 }
 ```
 
+**Steady-state config** (after recall store is established — raise thresholds back):
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "memory-core": {
+        "enabled": true,
+        "config": {
+          "dreaming": {
+            "enabled": true,
+            "timezone": "Asia/Jakarta",
+            "frequency": "0 4 * * *",
+            "storage": { "mode": "both" },
+            "phases": {
+              "light": { "lookbackDays": 2, "limit": 100 },
+              "deep": { "minRecallCount": 3, "minUniqueQueries": 3 },
+              "rem": { "lookbackDays": 7 }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+| Setting | Default | Bootstrap | Steady-state | Why |
+|---------|---------|-----------|--------------|-----|
+| timezone | system | Asia/Jakarta | Asia/Jakarta | Match your timezone |
+| frequency | 0 3 * * * | 0 4 * * * | 0 4 * * * | Buffer for late sessions |
+| storage.mode | inline | both | both | Separate phase reports for audit |
+| light.lookbackDays | 2 | 3 | 2 | Wider net when data is sparse |
+| light.limit | 100 | 150 | 100 | More candidates early on |
+| deep.minRecallCount | 3 | **2** | 3 | Lower = promote sooner while bootstrapping |
+| deep.minUniqueQueries | 3 | **2** | 3 | Lower = promote sooner while bootstrapping |
+| deep.minScore | 0.8 | 0.8 | 0.8 | Quality gate stays high |
+
 **Note:** Deep phase always writes to MEMORY.md (not configurable). MEMORY.md becomes a mixed layer — protocol at the top, auto-promoted entries at the bottom. The protocol section (map/pointers) remains the authoritative navigation layer.
+
+**After 1-2 weeks:** Switch from bootstrap to steady-state config by raising `minRecallCount` and `minUniqueQueries` back to 3.
 
 ### Deep ranking signals
 
