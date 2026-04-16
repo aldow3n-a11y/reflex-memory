@@ -221,17 +221,130 @@ Reflex Memory keeps credentials **searchable but not exposed**:
 
 ---
 
+## LLM-Enhanced Pipeline
+
+Every stage that needs knowledge distillation can use an LLM call. The current hook uses regex for saliency detection as a lightweight first pass, but the full pipeline is designed for LLM augmentation:
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   OBSERVE    │────→│   DISTILL   │────→│   REFLECT   │
+│              │     │              │     │              │
+│ regex trigger│     │ LLM call    │     │ LLM call    │
+│ + LLM score  │     │ summarize   │     │ condense     │
+│              │     │ structure   │     │ merge dupes  │
+│              │     │ deduplicate  │     │ prune stale  │
+└─────────────┘     └─────────────┘     └─────────────┘
+       │                    │                    │
+       ▼                    ▼                    ▼
+  queue.json          MEMORY.md            MEMORY.md
+  (capture)          (curated facts)      (compacted)
+```
+
+### Stage 1: Observe (regex + optional LLM)
+
+Current: regex patterns detect "remember this", "core truth", "lesson learned", etc.
+
+Enhanced: regex triggers first pass, then LLM scores saliency (0-1). Items above threshold enter the queue. This catches implicit insights that don't match any pattern.
+
+```
+Input: assistant message
+→  regex scan for known patterns
+→  [optional] LLM: "Rate 0-1 how memorable this insight is"
+→  items above threshold → queue.json
+```
+
+### Stage 2: Distill (LLM call)
+
+Current: strip pattern prefix, dedup against MEMORY.md, append raw text.
+
+Enhanced: LLM receives queued items + current MEMORY.md, produces a structured entry that fits the existing format. Deduplication happens at the LLM level — it can merge related entries.
+
+```
+Input: queue.json items + current MEMORY.md
+→  LLM: "Distill these insights into concise MEMORY.md entries
+         that complement existing content. Merge related items.
+         Use § delimiters. Output only the new entries."
+→  append to MEMORY.md
+→  clear queue
+```
+
+### Stage 3: Extract (LLM call, weekly)
+
+Current: manual during heartbeat.
+
+Enhanced: LLM scans week's daily logs, identifies insights/decisions/corrections, creates atomic notes with YAML frontmatter in `vault/Atlas/Notes/`, and suggests MOC links.
+
+```
+Input: week's daily logs + existing MOCs
+→  LLM: "Extract novel insights not yet in Atlas/Notes.
+         For each: create atomic note with tier/type/tags.
+         Suggest which MOCs should link to each note."
+→  write notes to vault/Atlas/Notes/
+→  update relevant MOCs
+```
+
+### Stage 4: Reflect (LLM call, monthly or when MEMORY.md exceeds threshold)
+
+Current: not implemented.
+
+Enhanced: LLM reviews MEMORY.md, identifies stale/overlapping entries, produces a compacted version. Like Mastra's Reflector — condenses observations into denser form.
+
+```
+Input: full MEMORY.md
+→  LLM: "Review these entries. Identify:
+         - Duplicates that should be merged
+         - Stale entries no longer relevant
+         - Entries that should be promoted to vault notes
+         Produce a compacted MEMORY.md."
+→  replace MEMORY.md with compacted version
+→  archived entries → vault/_memory_backup/
+```
+
+### Stage 5: Maintain (LLM call, monthly)
+
+Current: manual MOC audit.
+
+Enhanced: LLM audits MOC wikilinks, creates stubs for missing notes, suggests new connections between existing notes.
+
+```
+Input: all MOCs + vault/Atlas/Notes/ file list
+→  LLM: "For each MOC:
+         - Identify broken wikilinks
+         - Suggest new links to existing notes
+         - Identify concepts that need stub notes"
+→  create stubs for missing concepts
+→  update MOCs with new links
+```
+
+### Cost Model
+
+| Stage | Frequency | LLM Cost | Fallback |
+|-------|-----------|-----------|----------|
+| Observe | Every message | ~50 tokens (scoring) | Regex only |
+| Distill | Per session end | ~200-500 tokens | Raw append |
+| Extract | Weekly | ~2000-5000 tokens | Manual |
+| Reflect | Monthly | ~1000-3000 tokens | Manual |
+| Maintain | Monthly | ~1000-2000 tokens | Manual |
+
+Total monthly cost: ~10-20k tokens for a typical usage pattern. Negligible compared to conversation tokens.
+
+---
+
 ## Comparison to Alternatives
 
-| Feature | Reflex Memory | Graymatter/Cortex | Vector DB |
-|---------|--------------|-------------------|-----------|
-| Search engine | FTS5 (built-in) | FTS5 (custom) | Embeddings |
-| Auto-capture | Event hook | Manual/cron | Manual |
-| Crash recovery | gateway:startup | None | Varies |
-| Vault integration | Native (extraPaths) | Separate script | Separate |
-| External deps | None | Python + SQLite | Embedding API |
-| Token cost | Low (FTS5 snippets) | Medium | High |
-| Setup | 1 hook + config | Multiple scripts + cron | API key + DB |
+| Feature | Reflex Memory | Mastra OM | Vector DB |
+|---------|--------------|-----------|-----------|
+| Search engine | FTS5 (built-in) | FTS5 + optional vectors | Embeddings |
+| Auto-capture | Event hook + regex | Background LLM observer | Manual |
+| Auto-distill | Queue → MEMORY.md | LLM observer/reflector | Manual |
+| Crash recovery | gateway:startup flush | Lazy re-observation | Varies |
+| Vault integration | Native (extraPaths) | None | Separate |
+| Knowledge lifecycle | 5 stages + LLM roadmap | Compress/reflect only | Store + retrieve |
+| LLM enhancement | Optional per-stage | Required (every step) | Required (embeddings) |
+| External deps | None | LLM API + DB | Embedding API + DB |
+| Token cost | 0 (regex) / ~20k/mo (LLM) | ~100k+/mo (continuous) | ~50k+/mo (embeddings) |
+| Setup | 1 hook + config | npm package + DB + model | API key + DB |
+| Human-readable | All Markdown | LLM summaries | Vectors |
 
 ---
 
@@ -310,9 +423,11 @@ openclaw hooks list | grep cortex
 
 4. **Distill, don't dump** — Raw logs go to daily files. Only curated, deduplicated insights enter MEMORY.md. The synthesis queue is a staging area, not a fire hose.
 
-5. **Archive, don't delete** — Pruned CORTEX noise and stale notes go to `_memory_backup/`, not `/dev/null`. Recoverable beats gone forever.
+5. **LLM-enhanced, not LLM-dependent** — Every distillation stage can use an LLM call for better quality, but regex fallback means the system never breaks without API access.
 
-6. **Protocol in the file** — The memory instructions live in MEMORY.md itself, not in a separate doc. Every session, every model reads it first.
+6. **Archive, don't delete** — Pruned CORTEX noise and stale notes go to `_memory_backup/`, not `/dev/null`. Recoverable beats gone forever.
+
+7. **Protocol in the file** — The memory instructions live in MEMORY.md itself, not in a separate doc. Every session, every model reads it first.
 
 ---
 
