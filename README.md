@@ -1,6 +1,15 @@
 # OpenClaw Reflex Memory
 
-> A structured memory system for AI agents. Capture, recall, distill, and maintain knowledge — automatically.
+> A structured memory system for OpenClaw AI agents. Capture, recall, distill, and maintain knowledge — automatically.
+
+**⚠️ Requires OpenClaw with native memory indexing.** Reflex Memory depends on OpenClaw's built-in FTS5 `memory_search` tool, event-driven hooks, and the `memorySearch.extraPaths` configuration. It does **not** work as a standalone system or with other agent frameworks. If your OpenClaw instance doesn't have `memory_search` and the hooks system, Reflex Memory won't function.
+
+## Prerequisites
+
+- **OpenClaw** with native FTS5 memory indexing (`memory_search` tool)
+- **OpenClaw hooks** system (for event-driven capture and distill)
+- **`memorySearch.extraPaths`** configured in `openclaw.json` to include your vault path
+- Verify with: `openclaw memory status` — should show indexed files and chunk count
 
 ## What It Is
 
@@ -376,6 +385,14 @@ Total monthly cost: ~10-20k tokens for a typical usage pattern. Negligible compa
 
 ### 1. Configure memory search
 
+**Verify native indexing is available:**
+```bash
+openclaw memory status
+# Should show: indexed files, chunk count, FTS5 backend
+# If this command fails or shows no index, Reflex Memory won't work
+```
+
+**Add your vault to the index:**
 ```json
 // ~/.openclaw/openclaw.json
 {
@@ -383,6 +400,12 @@ Total monthly cost: ~10-20k tokens for a typical usage pattern. Negligible compa
     "extraPaths": ["/path/to/your/vault"]
   }
 }
+```
+
+**Restart and verify:**
+```bash
+openclaw gateway
+# In a session, test: memory_search for any query
 ```
 
 ### 2. Install the hook
@@ -416,8 +439,11 @@ Use `template-moc.md` to create a Map of Content in `vault/Atlas/Maps/`.
 # Check hook is active
 openclaw hooks list | grep cortex
 
-# Test search
-# (in a session, use the memory_search tool with any query)
+# Verify memory indexing works
+openclaw memory status
+
+# Test search (in a session, use the memory_search tool with any query)
+# If memory_search returns results, Reflex Memory is fully operational
 ```
 
 ---
