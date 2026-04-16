@@ -509,6 +509,91 @@ openclaw memory status
 
 7. **Protocol in the file** — The memory instructions live in MEMORY.md itself, not in a separate doc. Every session, every model reads it first.
 
+8. **Fast + Deep layers** — The cortex hook captures in real-time (fast, regex, event-driven). Native Dreaming scores and promotes overnight (deep, weighted signals, cron). Both layers work together — the hook feeds daily logs, Dreaming ingests them.
+
+---
+
+## Native Dreaming Integration
+
+Reflex Memory integrates with OpenClaw's built-in Dreaming system as the deep consolidation layer.
+
+### Two-layer architecture
+
+```
+┌──────────────────────┐
+│  FAST LAYER (hook)    │  Event-driven, session scope
+│  Regex capture        │  message:sent → queue
+│  Session-end distill  │──→ daily log + Calendar note
+└──────────────────────┘
+         │
+         │ daily logs feed into
+         ▼
+┌──────────────────────┐
+│  DEEP LAYER (Dreaming)│  Cron-driven, overnight
+│  Light: score         │  ingests daily logs + sessions
+│  REM: reflect         │  themes, patterns, recurring ideas
+│  Deep: promote        │──→ MEMORY.md + DREAMS.md
+└──────────────────────┘
+         │
+         ▼
+┌──────────────────────┐
+│  RECALL (FTS5)        │
+│  memory_search       │  12k+ chunks
+└──────────────────────┘
+```
+
+### What Dreaming adds
+
+| Capability | Hook only | Hook + Dreaming |
+|-----------|-----------|----------------|
+| Real-time capture | ✅ Regex | ✅ Regex |
+| Scoring | ❌ Pattern match = yes/no | ✅ 6 weighted signals |
+| Pattern detection | ❌ | ✅ REM phase (cross-day themes) |
+| Overnight promotion | ❌ | ✅ Deep phase (threshold gates) |
+| Narrative diary | ❌ | ✅ DREAMS.md |
+| Crash recovery | ✅ gateway:startup | ✅ gateway:startup |
+
+### Configuration
+
+Enable Dreaming in `openclaw.json`:
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "memory-core": {
+        "enabled": true,
+        "config": {
+          "dreaming": {
+            "enabled": true,
+            "frequency": "0 3 * * *"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+**Note:** Deep phase always writes to MEMORY.md (not configurable). MEMORY.md becomes a mixed layer — protocol at the top, auto-promoted entries at the bottom. The protocol section (map/pointers) remains the authoritative navigation layer.
+
+### Deep ranking signals
+
+| Signal | Weight | What it measures |
+|--------|--------|-----------------|
+| Relevance | 0.30 | Average retrieval quality |
+| Frequency | 0.24 | How many short-term signals accumulated |
+| Query diversity | 0.15 | Distinct query/day contexts |
+| Recency | 0.15 | Time-decayed freshness |
+| Consolidation | 0.10 | Multi-day recurrence strength |
+| Conceptual richness | 0.06 | Concept-tag density |
+
+Items must pass `minScore`, `minRecallCount`, and `minUniqueQueries` thresholds to be promoted.
+
+### Dream Diary
+
+Dreaming writes a narrative diary to `DREAMS.md` — a human-readable summary of what surfaced overnight. This is not a data source for recall, just a readable log of consolidation activity.
+
 ---
 
 ## License
